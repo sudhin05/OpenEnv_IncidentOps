@@ -1,0 +1,191 @@
+{
+  "task_id": "hard",
+  "seed": 303,
+  "max_steps": 16,
+  "title": "Cross-service checkout degradation with conflicting signals",
+  "alert_summary": "ALERT: checkout-web and downstream order flows are degraded. Multiple signals are firing, but causal source is unclear.",
+  "customer_impact_summary": "Customers are experiencing failed or delayed orders, retries, and inconsistent confirmations. The incident spans multiple services and carries high business impact.",
+  "true_severity": "sev1",
+  "root_cause": "inventory dependency bottleneck causing cascading payment and checkout latency",
+  "impacted_services": ["checkout-web", "payments-api"],
+  "dependency_chain": ["checkout-web", "payments-api", "inventory-service", "inventory-db"],
+  "misleading_signals": [
+    "unrelated frontend cpu alert",
+    "recent payments-api deploy appears correlated but is not root cause"
+  ],
+  "valid_mitigations": ["clear_queue", "scale_up", "shift_traffic"],
+  "escalation_required": true,
+  "expected_escalation_team": "sre",
+  "required_evidence_keys": [
+    "symptom_log",
+    "dependency_log",
+    "root_cause_log",
+    "red_herring_log",
+    "inventory_metric"
+  ],
+  "evidence": {
+    "logs": [
+      {
+        "evidence_key": "symptom_log",
+        "log": {
+          "service": "checkout-web",
+          "timestamp": "2026-04-05T12:01:11Z",
+          "severity": "error",
+          "message": "checkout-web: order creation failures increased sharply over the last 15 minutes",
+          "relevance_hint": "customer-visible symptom"
+        }
+      },
+      {
+        "evidence_key": "dependency_log",
+        "log": {
+          "service": "checkout-web",
+          "timestamp": "2026-04-05T12:03:22Z",
+          "severity": "error",
+          "message": "checkout-web: upstream dependency payments-api timed out during order creation",
+          "relevance_hint": "dependency evidence"
+        }
+      },
+      {
+        "evidence_key": "dependency_log",
+        "log": {
+          "service": "payments-api",
+          "timestamp": "2026-04-05T12:04:09Z",
+          "severity": "warning",
+          "message": "payments-api: dependency inventory-service slow responses causing retry storms",
+          "relevance_hint": "dependency chain"
+        }
+      },
+      {
+        "evidence_key": "root_cause_log",
+        "log": {
+          "service": "inventory-db",
+          "timestamp": "2026-04-05T12:05:33Z",
+          "severity": "error",
+          "message": "inventory-db: saturation caused by stale invalidation backlog and lock contention",
+          "relevance_hint": "root cause"
+        }
+      },
+      {
+        "evidence_key": "root_cause_log",
+        "log": {
+          "service": "inventory-service",
+          "timestamp": "2026-04-05T12:06:10Z",
+          "severity": "warning",
+          "message": "inventory-service: dependency calls blocked waiting on inventory-db response",
+          "relevance_hint": "causal chain"
+        }
+      },
+      {
+        "evidence_key": "red_herring_log",
+        "log": {
+          "service": "frontend",
+          "timestamp": "2026-04-05T12:02:05Z",
+          "severity": "warning",
+          "message": "unrelated frontend cpu alert",
+          "relevance_hint": "red herring"
+        }
+      },
+      {
+        "evidence_key": "deploy_log",
+        "log": {
+          "service": "payments-api",
+          "timestamp": "2026-04-05T11:55:00Z",
+          "severity": "info",
+          "message": "payments-api: deploy completed near incident start, but no code paths map to inventory read contention",
+          "relevance_hint": "misleading deploy"
+        }
+      }
+    ],
+    "metrics": [
+      {
+        "evidence_key": "latency_metric",
+        "metric": {
+          "service": "checkout-web",
+          "metric_name": "p95_latency_ms",
+          "value": 3600.7,
+          "unit": "ms",
+          "trend": "up",
+          "summary": "checkout-web latency is materially above baseline"
+        }
+      },
+      {
+        "evidence_key": "error_rate_metric",
+        "metric": {
+          "service": "checkout-web",
+          "metric_name": "error_rate_pct",
+          "value": 24.9,
+          "unit": "percent",
+          "trend": "up",
+          "summary": "customer-facing errors are increasing on checkout-web"
+        }
+      },
+      {
+        "evidence_key": "inventory_metric",
+        "metric": {
+          "service": "inventory-service",
+          "metric_name": "dependency_queue_depth",
+          "value": 2900.0,
+          "unit": "items",
+          "trend": "up",
+          "summary": "inventory-service queue depth suggests downstream blockage"
+        }
+      },
+      {
+        "evidence_key": "cpu_metric",
+        "metric": {
+          "service": "frontend",
+          "metric_name": "cpu_used_pct",
+          "value": 82.3,
+          "unit": "percent",
+          "trend": "up",
+          "summary": "frontend CPU is elevated but not sufficient to explain the full outage"
+        }
+      },
+      {
+        "evidence_key": "queue_depth_metric",
+        "metric": {
+          "service": "payments-api",
+          "metric_name": "retry_queue_depth",
+          "value": 880.0,
+          "unit": "items",
+          "trend": "up",
+          "summary": "retry queue growth appears secondary to downstream slowness"
+        }
+      }
+    ],
+    "runbooks": [
+      {
+        "evidence_key": "general",
+        "notes": [
+          "Start from customer-visible symptoms, then validate the most likely upstream dependency before resolving.",
+          "Do not mark incidents resolved until customer impact is reduced and the suspected root cause is supported by evidence."
+        ]
+      },
+      {
+        "evidence_key": "database",
+        "notes": [
+          "If inventory-db saturation is high, restarting the app tier may reduce symptoms briefly without fixing the cause.",
+          "When upstream timeouts correlate with high DB usage, inspect dependency health before blaming the nearest service."
+        ]
+      },
+      {
+        "evidence_key": "dependencies",
+        "notes": [
+          "Differentiate symptom service from root-cause service by following the failing dependency chain."
+        ]
+      },
+      {
+        "evidence_key": "causal",
+        "notes": [
+          "A recent deploy can be a red herring. Prefer causal evidence over temporal coincidence.",
+          "If one mitigation reduces latency but queue depth and dependency saturation remain high, the root cause is likely unresolved."
+        ]
+      }
+    ]
+  },
+  "initial_visible": {
+    "log_keys": ["symptom_log", "red_herring_log"],
+    "metric_keys": ["latency_metric", "cpu_metric"],
+    "runbook_keys": ["general"]
+  }
+}

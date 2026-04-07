@@ -1,0 +1,123 @@
+{
+  "task_id": "medium",
+  "seed": 202,
+  "max_steps": 12,
+  "title": "Payments latency rising with intermittent checkout failures",
+  "alert_summary": "ALERT: payments-api latency and payment failures are rising across regions. Blast radius suggests a dependency issue.",
+  "customer_impact_summary": "Customers are seeing delayed payment confirmations and repeated retries. Revenue-impacting symptoms are present in multiple regions.",
+  "true_severity": "sev1",
+  "root_cause": "database connection pool saturation affecting payments-api",
+  "impacted_services": ["payments-api"],
+  "dependency_chain": ["payments-api", "postgres"],
+  "misleading_signals": ["recent payments-api deploy looks suspicious but is not causal"],
+  "valid_mitigations": ["scale_up", "shift_traffic"],
+  "escalation_required": true,
+  "expected_escalation_team": "database",
+  "required_evidence_keys": ["latency_metric", "db_connections_metric", "dependency_log"],
+  "evidence": {
+    "logs": [
+      {
+        "evidence_key": "symptom_log",
+        "log": {
+          "service": "payments-api",
+          "timestamp": "2026-04-05T11:02:11Z",
+          "severity": "error",
+          "message": "payments-api: payment timeouts exceeded threshold across regions",
+          "relevance_hint": "customer-visible symptom"
+        }
+      },
+      {
+        "evidence_key": "dependency_log",
+        "log": {
+          "service": "payments-api",
+          "timestamp": "2026-04-05T11:04:22Z",
+          "severity": "error",
+          "message": "payments-api: upstream dependency postgres timed out during payment processing",
+          "relevance_hint": "dependency evidence"
+        }
+      },
+      {
+        "evidence_key": "root_cause_log",
+        "log": {
+          "service": "postgres",
+          "timestamp": "2026-04-05T11:05:33Z",
+          "severity": "error",
+          "message": "postgres: connection pool exhausted, new queries blocked",
+          "relevance_hint": "root cause"
+        }
+      },
+      {
+        "evidence_key": "deploy_log",
+        "log": {
+          "service": "payments-api",
+          "timestamp": "2026-04-05T10:40:00Z",
+          "severity": "info",
+          "message": "payments-api: deploy completed 35 minutes before incident window; no error spike at deploy time",
+          "relevance_hint": "red herring"
+        }
+      }
+    ],
+    "metrics": [
+      {
+        "evidence_key": "latency_metric",
+        "metric": {
+          "service": "payments-api",
+          "metric_name": "p95_latency_ms",
+          "value": 2900.2,
+          "unit": "ms",
+          "trend": "up",
+          "summary": "payments-api latency is materially above normal baseline"
+        }
+      },
+      {
+        "evidence_key": "error_rate_metric",
+        "metric": {
+          "service": "payments-api",
+          "metric_name": "error_rate_pct",
+          "value": 19.6,
+          "unit": "percent",
+          "trend": "up",
+          "summary": "payment error rate is increasing alongside latency"
+        }
+      },
+      {
+        "evidence_key": "db_connections_metric",
+        "metric": {
+          "service": "postgres",
+          "metric_name": "db_connections_used_pct",
+          "value": 97.4,
+          "unit": "percent",
+          "trend": "up",
+          "summary": "postgres is near or at connection saturation"
+        }
+      }
+    ],
+    "runbooks": [
+      {
+        "evidence_key": "general",
+        "notes": [
+          "Start from customer-visible symptoms, then validate the most likely upstream dependency before resolving.",
+          "Do not mark incidents resolved until customer impact is reduced and the suspected root cause is supported by evidence."
+        ]
+      },
+      {
+        "evidence_key": "database",
+        "notes": [
+          "If postgres connection saturation is high, restarting the app tier may reduce symptoms briefly without fixing the cause.",
+          "When upstream timeouts correlate with high DB usage, inspect dependency health before blaming the nearest service."
+        ]
+      },
+      {
+        "evidence_key": "dependencies",
+        "notes": [
+          "Differentiate symptom service from root-cause service by following the failing dependency chain."
+        ]
+      }
+    ]
+  },
+  "initial_visible": {
+    "log_keys": ["symptom_log"],
+    "metric_keys": ["latency_metric"],
+    "runbook_keys": ["general", "database"]
+  }
+}

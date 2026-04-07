@@ -1,0 +1,137 @@
+{
+  "task_id": "easy",
+  "seed": 101,
+  "max_steps": 8,
+  "title": "Single-service outage impacting checkout after rollout",
+  "alert_summary": "ALERT: checkout-api error-rate SLO breach after recent rollout. Customer checkouts failing.",
+  "customer_impact_summary": "Customers are intermittently unable to complete checkout via checkout-api. Impact is significant but limited to a single service path.",
+  "true_severity": "sev2",
+  "root_cause": "bad feature flag rollout on checkout-api",
+  "impacted_services": ["checkout-api"],
+  "dependency_chain": ["checkout-api"],
+  "misleading_signals": ["minor cpu warning on analytics-worker"],
+  "valid_mitigations": ["rollback_deploy", "toggle_feature_flag"],
+  "escalation_required": false,
+  "expected_escalation_team": null,
+  "required_evidence_keys": ["symptom_log", "deploy_log", "rollback_hint"],
+  "evidence": {
+    "logs": [
+      {
+        "evidence_key": "symptom_log",
+        "log": {
+          "service": "checkout-api",
+          "timestamp": "2026-04-05T10:12:11Z",
+          "severity": "error",
+          "message": "checkout-api: request failures increased sharply over the last 10 minutes",
+          "relevance_hint": "customer-visible symptom"
+        }
+      },
+      {
+        "evidence_key": "symptom_log",
+        "log": {
+          "service": "checkout-api",
+          "timestamp": "2026-04-05T10:14:52Z",
+          "severity": "warning",
+          "message": "checkout-api: p95 latency exceeded SLO threshold",
+          "relevance_hint": "symptom"
+        }
+      },
+      {
+        "evidence_key": "deploy_log",
+        "log": {
+          "service": "checkout-api",
+          "timestamp": "2026-04-05T10:05:01Z",
+          "severity": "warning",
+          "message": "checkout-api: errors began immediately after config rollout",
+          "relevance_hint": "deploy correlation"
+        }
+      },
+      {
+        "evidence_key": "deploy_log",
+        "log": {
+          "service": "checkout-api",
+          "timestamp": "2026-04-05T10:06:33Z",
+          "severity": "info",
+          "message": "checkout-api: last known good state predates latest feature flag update",
+          "relevance_hint": "rollback hint"
+        }
+      },
+      {
+        "evidence_key": "rollback_hint",
+        "log": {
+          "service": "checkout-api",
+          "timestamp": "2026-04-05T10:07:10Z",
+          "severity": "info",
+          "message": "checkout-api: rollback would restore last known healthy checkout configuration",
+          "relevance_hint": "mitigation hint"
+        }
+      },
+      {
+        "evidence_key": "red_herring_log",
+        "log": {
+          "service": "analytics-worker",
+          "timestamp": "2026-04-05T10:09:00Z",
+          "severity": "warning",
+          "message": "minor cpu warning on analytics-worker",
+          "relevance_hint": "red herring"
+        }
+      }
+    ],
+    "metrics": [
+      {
+        "evidence_key": "latency_metric",
+        "metric": {
+          "service": "checkout-api",
+          "metric_name": "p95_latency_ms",
+          "value": 3100.5,
+          "unit": "ms",
+          "trend": "up",
+          "summary": "checkout-api latency is materially above normal baseline"
+        }
+      },
+      {
+        "evidence_key": "error_rate_metric",
+        "metric": {
+          "service": "checkout-api",
+          "metric_name": "error_rate_pct",
+          "value": 27.4,
+          "unit": "percent",
+          "trend": "up",
+          "summary": "checkout-api customer-facing errors are increasing"
+        }
+      },
+      {
+        "evidence_key": "deploy_metric",
+        "metric": {
+          "service": "checkout-api",
+          "metric_name": "errors_post_rollout_pct",
+          "value": 31.2,
+          "unit": "percent",
+          "trend": "up",
+          "summary": "error rate rose immediately after recent rollout"
+        }
+      }
+    ],
+    "runbooks": [
+      {
+        "evidence_key": "general",
+        "notes": [
+          "Start from customer-visible symptoms, then validate the most likely upstream dependency before resolving.",
+          "Do not mark incidents resolved until customer impact is reduced and the suspected root cause is supported by evidence."
+        ]
+      },
+      {
+        "evidence_key": "deploys",
+        "notes": [
+          "If checkout-api errors rise immediately after rollout, compare deploy timing and consider rollback or flag disable before deeper escalation.",
+          "Feature flag misconfigurations often create sudden failure spikes with low infrastructure signal."
+        ]
+      }
+    ]
+  },
+  "initial_visible": {
+    "log_keys": ["symptom_log"],
+    "metric_keys": ["latency_metric", "error_rate_metric"],
+    "runbook_keys": ["general"]
+  }
+}
