@@ -4,7 +4,7 @@ emoji: 🚒
 colorFrom: red
 colorTo: yellow
 sdk: docker
-app_port: 8000
+app_port: 7860
 base_path: /docs
 pinned: false
 tags:
@@ -50,7 +50,7 @@ pip install -r requirements.txt
 
 ## Run the Server
 ```
-uvicorn app.server:app --host 0.0.0.0 --port 8000
+uvicorn app.server:app --host 0.0.0.0 --port 7860
 ```
 
 ## Baseline Inference

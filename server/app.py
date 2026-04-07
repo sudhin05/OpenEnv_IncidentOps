@@ -29,7 +29,19 @@ def step_env(payload: StepRequest) -> StepResult:
     return _env.step(payload.action)
 
 
+import os
+import uvicorn
+
 @app.get("/state", response_model=IncidentState)
 def get_state() -> IncidentState:
     return _env.state()
+
+
+def main() -> None:
+    port = int(os.getenv("PORT", "7860"))
+    uvicorn.run("server.app:app", host="0.0.0.0", port=port, reload=False)
+
+
+if __name__ == "__main__":
+    main()
 
