@@ -12,5 +12,12 @@ dependencies = [
     "uvicorn>=0.30.6",
     "pydantic>=2.9.2",
     "openai>=1.51.2",
-    "python-dotenv>=1.0.1"
+    "python-dotenv>=1.0.1",
+    "openenv-core>=0.2.0"
 ]
+
+[project.scripts]
+server = "server.app:app"
+
+[tool.setuptools]
+packages = ["server"]

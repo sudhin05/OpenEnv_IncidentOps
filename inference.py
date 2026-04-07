@@ -6,8 +6,8 @@ from typing import List, Optional
 
 from openai import OpenAI
 
-from app.env import IncidentOpsEnv
-from app.graders import grade_episode
+from server.env import IncidentOpsEnv
+from server.graders import grade_episode
 
 API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
 MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"

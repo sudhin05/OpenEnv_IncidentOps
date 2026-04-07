@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.env import IncidentOpsEnv
-from app.models import TaskConfig
+from server.env import IncidentOpsEnv
+from server.models import TaskConfig
 
 TASK_IDS = ["easy", "medium", "hard"]
 
