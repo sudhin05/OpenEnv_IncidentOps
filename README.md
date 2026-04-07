@@ -1,3 +1,17 @@
+---
+title: Incident Triage
+emoji: 🚒
+colorFrom: red
+colorTo: yellow
+sdk: docker
+app_port: 8000
+pinned: false
+tags:
+  - openenv
+  - reinforcement-learning
+  - saas
+---
+
 # IncidentOps OpenEnv
 
 Deterministic incident-response environment for OpenEnv. Agents must classify severity, gather evidence, escalate correctly, apply mitigations, and resolve incidents within a step budget.
