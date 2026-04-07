@@ -1,20 +1,20 @@
 name: incident_ops_env
 version: 0.1.0
 description: Deterministic incident response triage environment with seeded tasks.
-entrypoint: app.server:app
+entrypoint: server.app:app
 endpoints:
   reset: /reset
   step: /step
   state: /state
 models:
-  observation: app.models.IncidentObservation
-  action: app.models.IncidentAction
-  state: app.models.IncidentState
-  reward: app.models.StepReward
+  observation: server.models.IncidentObservation
+  action: server.models.IncidentAction
+  state: server.models.IncidentState
+  reward: server.models.StepReward
 tasks:
   - id: easy
-    file: app/tasks/easy_incident.json
+    file: server/tasks/easy_incident.json
   - id: medium
-    file: app/tasks/medium_incident.json
+    file: server/tasks/medium_incident.json
   - id: hard
-    file: app/tasks/hard_incident.json
+    file: server/tasks/hard_incident.json
