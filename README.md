@@ -5,7 +5,6 @@ colorFrom: red
 colorTo: yellow
 sdk: docker
 app_port: 8000
-base_path: /docs
 pinned: false
 tags:
   - openenv
