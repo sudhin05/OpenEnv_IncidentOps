@@ -20,7 +20,7 @@ class StepRequest(BaseModel):
 
 
 @app.post("/reset", response_model=IncidentObservation)
-def reset_env(payload: ResetRequest) -> IncidentObservation:
+def reset_env(payload: ResetRequest = ResetRequest()) -> IncidentObservation:
     return _env.reset(task_id=payload.task_id)
 
 
