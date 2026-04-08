@@ -6,6 +6,9 @@ from typing import List, Optional
 
 from openai import OpenAI
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from server.env import IncidentOpsEnv
 from server.graders import grade_episode
 
@@ -25,15 +28,15 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
     error_val = error if error else "null"
     done_val = str(done).lower()
     print(
-        f"[STEP] step={step} action={action} reward={reward:.4f} done={done_val} error={error_val}",
+        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
         flush=True,
     )
 
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
-    rewards_str = ",".join(f"{r:.4f}" for r in rewards)
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(
-        f"[END] success={str(success).lower()} steps={steps} score={score:.4f} rewards={rewards_str}",
+        f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}",
         flush=True,
     )
 
@@ -45,139 +48,36 @@ def get_client() -> OpenAI:
 
 
 def choose_action(client: OpenAI, observation: dict) -> dict:
+    action_definitions = """
+Available Actions and required fields:
+- query_logs(service: str, query: str, window_min: int)
+- query_metrics(service: str, metric_name: str, window_min: int)
+- read_runbook(service: str, topic: str)
+- inspect_dependency(source_service: str, target_service: str)
+- classify_severity(severity: "sev1" | "sev2" | "sev3", justification: str)
+- escalate_team(team: "backend" | "database" | "infra" | "payments" | "frontend" | "sre", urgency: "low" | "medium" | "high", justification: str)
+- apply_mitigation(mitigation: "restart_service" | "rollback_deploy" | "shift_traffic" | "clear_queue" | "scale_up" | "toggle_feature_flag", target_service: str, justification: str)
+- post_status_update(audience: "internal" | "customer", message: str)
+- resolve_incident(suspected_root_cause: str, mitigation_applied: str, customer_impact_status: "resolved" | "mitigated" | "unknown", resolution_summary: str, confidence: float)
+
+All actions MUST include "action_type" field matching the name above.
+"""
     system = (
-        """You are an incident response agent. Output ONLY valid JSON for the next action.
-
-You are given the current observation of a production incident.
-Your job is to choose the NEXT BEST ACTION.
-
-You MUST output EXACTLY ONE valid JSON object representing an action.
-
--------------------------------------
-⚠️ STRICT OUTPUT RULES (VERY IMPORTANT)
--------------------------------------
-
-- Output ONLY JSON (no explanation, no text)
-- Use EXACT field names from schema
-- Do NOT invent fields
-- Do NOT rename fields
-- JSON must be valid and parseable
-
--------------------------------------
-✅ AVAILABLE ACTIONS AND SCHEMA
--------------------------------------
-
-1. Query Metrics:
-{
-  "action_type": "query_metrics",
-  "service": "<string>",
-  "metric_name": "<string>",
-  "window_min": <integer between 1 and 240>
-}
-
-2. Query Logs:
-{
-  "action_type": "query_logs",
-  "service": "<string>",
-  "query": "<string>",
-  "window_min": <integer between 1 and 240>
-}
-
-3. Read Runbook:
-{
-  "action_type": "read_runbook",
-  "service": "<string>",
-  "topic": "<string>"
-}
-
-4. Inspect Dependency:
-{
-  "action_type": "inspect_dependency",
-  "source_service": "<string>",
-  "target_service": "<string>"
-}
-
-5. Classify Severity:
-{
-  "action_type": "classify_severity",
-  "severity": "sev1" | "sev2" | "sev3",
-  "justification": "<string>"
-}
-
-6. Escalate Team:
-{
-  "action_type": "escalate_team",
-  "team": "backend" | "database" | "infra" | "payments" | "frontend" | "sre",
-  "urgency": "low" | "medium" | "high",
-  "justification": "<string>"
-}
-
-7. Apply Mitigation:
-{
-  "action_type": "apply_mitigation",
-  "mitigation": "restart_service" | "rollback_deploy" | "shift_traffic" | "clear_queue" | "scale_up" | "toggle_feature_flag",
-  "target_service": "<string>",
-  "justification": "<string>"
-}
-
-8. Post Status Update:
-{
-  "action_type": "post_status_update",
-  "audience": "internal" | "customer",
-  "message": "<string>"
-}
-
-9. Resolve Incident:
-{
-  "action_type": "resolve_incident",
-  "suspected_root_cause": "<string>",
-  "mitigation_applied": "<string>",
-  "customer_impact_status": "resolved" | "mitigated" | "unknown",
-  "resolution_summary": "<string>",
-  "confidence": <float between 0 and 1>
-}
-
--------------------------------------
-🚫 COMMON MISTAKES (DO NOT DO)
--------------------------------------
-
-- DO NOT use "metrics" → use "metric_name"
-- DO NOT use "duration" or "duration_minutes" → use "window_min"
-- DO NOT use "time_range"
-- DO NOT use "search_term" → use "query"
-- DO NOT output multiple actions
-- DO NOT add extra fields
-
--------------------------------------
-🧠 DECISION GUIDELINES
--------------------------------------
-
-- Start by gathering evidence (metrics/logs)
-- Use query_metrics for performance issues
-- Use query_logs for errors/exceptions
-- Use inspect_dependency if issue may be downstream
-- Use read_runbook if unsure
-- Classify severity when confident
-- Apply mitigation only when root cause is likely
-- Escalate if needed
-- Resolve ONLY when confident
-
--------------------------------------
-📥 INPUT (OBSERVATION)
--------------------------------------
-
-{observation}
-
--------------------------------------
-📤 OUTPUT
--------------------------------------
-
-Return ONLY the JSON action."""
+        "You are an expert SRE. Be methodical and thorough.\n"
+        "1. INVESTIGATE: Query for EVERY service mentioned in the alert. Use keywords: 'error', 'latency', 'db'.\n"
+        "2. CHAIN: When a log mentions a downstream service, query THAT service next.\n"
+        "3. EVIDENCE QUOTA: You MUST have 3+ distinct logs/metrics in your history. If you have fewer, keep searching. Resolution with low evidence will be REJECTED.\n"
+        "4. RESOLVE: Only after finding the cause AND applying a mitigation, call 'resolve_incident'.\n"
+        f"{action_definitions}"
     )
+    
+    findings_count = len(observation.get("visible_logs", [])) + len(observation.get("visible_metrics", []))
     user = {
         "observation": observation,
-        "allowed_action_types": observation.get("available_actions", []),
-        "instruction": "Return the next action JSON only.",
+        "instruction": (
+            f"Findings: {findings_count}/3 required. Step: {observation.get('step_index')}/{observation.get('max_steps')}. "
+            "If findings < 3, you MUST use query_logs or query_metrics now. Use simple keywords."
+        )
     }
 
     response = client.chat.completions.create(
@@ -192,24 +92,32 @@ Return ONLY the JSON action."""
 
     text = (response.choices[0].message.content or "{}").strip()
     
-    # Qwen and other Instruct models often output Markdown code blocks.
-    # We must strip them out to get valid JSON.
-    import re
-    match = re.search(r'```(?:json)?\s*(.*?)\s*```', text, re.DOTALL)
-    if match:
-        text = match.group(1).strip()
-        
+    # Handle Markdown JSON blocks
+    if text.startswith("```"):
+        lines = text.splitlines()
+        # Find the first line that looks like meat
+        start = 1 if lines[0].startswith("```") else 0
+        end = -1 if lines[-1].startswith("```") else len(lines)
+        text = "\n".join(lines[start:end])
+
     try:
         payload = json.loads(text)
         if isinstance(payload, dict):
             return payload
     except json.JSONDecodeError:
-        pass
+        # Fallback extraction
+        import re
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if match:
+            try:
+                payload = json.loads(match.group())
+                if isinstance(payload, dict): return payload
+            except: pass
 
     return {
         "action_type": "post_status_update",
         "audience": "internal",
-        "message": f"invalid action payload: {text[:50]}...",
+        "message": "Auto-recovery: Agent produced invalid JSON or failed to follow format.",
     }
 
 
