@@ -44,7 +44,7 @@ def grade_episode(state: IncidentState) -> float:
     extra_steps = max(0, state.step_index - 1)
     score -= 0.02 * extra_steps
 
-    EPS = 1e-6
+    EPS = 0.001
     score = round(score,6)
     return min(1.0-EPS,max(EPS,score))
 
